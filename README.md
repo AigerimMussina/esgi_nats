@@ -207,9 +207,10 @@ http://localhost:5000
 ### Using the Optimization Modules Directly
 
 #### Gradient-Based Optimization
+
 ```python
-from flight_optimization_gradient import main_fixed_temporal_gradient_search
-from wind_service import WindGridOptimizer
+from src.flight_optimization_gradient import main_fixed_temporal_gradient_search
+from src.wind_service import WindGridOptimizer
 
 # Load wind grids
 wind_optimizer = WindGridOptimizer()
@@ -220,15 +221,15 @@ flight_data = pd.read_parquet('path/to/flight.parquet')
 
 # Run optimization
 optimal_path, analysis = main_fixed_temporal_gradient_search(
-    flight_data, 
+    flight_data,
     is_visualization=True
 )
 ```
 
 #### A* Heuristic Optimization
 ```python
-from app import optimize_flight_route
-from wind_service import load_wind_grid_from_file
+from src.app import optimize_flight_route
+from src.wind_service import load_wind_grid_from_file
 
 # Load wind grid
 wind_grid = load_wind_grid_from_file('./results/wind_grids_cache.pkl')

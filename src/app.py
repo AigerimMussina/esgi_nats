@@ -31,30 +31,21 @@ Setup Instructions:
 """
 
 import os
-import json
-import re
 
 import pandas as pd
 import numpy as np
 from flask import Flask, render_template, jsonify, request
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 import math
-import pickle
 import heapq
-from scipy.interpolate import RegularGridInterpolator
-import threading
-import time
-from typing import Dict, Tuple, Optional, List
 import warnings
 
-from wind_service import WindGridOptimizer, load_wind_grid_from_file
+from wind_service import load_wind_grid_from_file
 from flight_optimization_gradient import main_fixed_temporal_gradient_search
 from utils import extract_airport_codes, get_airport_info_online
 
 from flight_efficiency_analysis import (
-    calculate_comprehensive_flight_analysis,
-    enhance_flight_data_response,
     generate_great_circle_waypoints,
     calculate_path_efficiency_metrics,
     analyze_wind_benefits_along_path
@@ -1118,7 +1109,7 @@ def get_flight_data():
         # Gradient optimization
         try:
             logger.info("Starting gradient-based route optimization...")
-            optimized_route_gradient, optimized_gradient_distance_info = main_fixed_temporal_gradient_search(flight_df)
+            optimized_route_gradient, optimized_gradient_distance_info = main_fixed_temporal_gradient_search(wind_grid, flight_df)
             # optimized_route_gradient = None
             if optimized_route_gradient is not None and len(optimized_route_gradient) > 0:
                 optimized_route_gradient = optimized_route_gradient[['lat', 'lon', 'alt', 'f_cost']].values.tolist()

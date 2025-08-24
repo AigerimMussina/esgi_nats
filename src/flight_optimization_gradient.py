@@ -631,19 +631,9 @@ def load_specific_flight(output_dir, unique_id):
 
 # ==================== MAIN EXECUTION ====================
 
-def main_fixed_temporal_gradient_search(loaded_flight, is_visualization=False):
+def main_fixed_temporal_gradient_search(wind_optimizer, loaded_flight, is_visualization=False):
     print("🚀 RUN FIXED TEMPORAL GRADIENT DESCENT FLIGHT OPTIMIZER")
     print("=" * 70)
-    wind_grid_file = "./results/wind_grids_cache.pkl"
-
-    if not os.path.exists(wind_grid_file):
-        print(f"❌ File {wind_grid_file} not found!")
-        print("Please run 3_flight_met_data_optimization.py first to get wind grid cache")
-        return None
-
-    wind_optimizer = WindGridOptimizer()
-    wind_optimizer.load_grids(wind_grid_file)
-    print("\n📊 Load data...")
 
     if loaded_flight is None:
         print("❌ No data could be loaded")
