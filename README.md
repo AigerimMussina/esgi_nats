@@ -38,8 +38,8 @@ A sophisticated flight route optimization system that leverages meteorological w
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/flight-optimization.git
-cd flight-optimization
+git clone https://github.com/yourusername/esgi_nats.git
+cd esgi_nats
 ```
 
 2. Install required dependencies:
@@ -62,17 +62,7 @@ beautifulsoup4
 
 3. Set up the project structure:
 ```
-flight-optimization/
-├── app.py                              # Flask web application
-├── flight_optimization_gradient.py     # Gradient-based optimizer
-├── wind_service.py                     # Wind grid service module
-├── flight_efficiency_analysis.py       # Flight analysis utilities
-├── utils.py                            # Helper functions
-├── 1_flight_split.py                   # Flight route splitting script
-├── 2_filter_flights.py                 # Meteorological filtering script
-├── 3_flight_met_data_optimization.py   # Wind grid pre-calculation script
-├── templates/
-│   └── index.html                      # Web interface template
+esgi_nats/                              # Main project directory (set as working directory)
 ├── data/
 │   ├── ECCC/
 │   │   └── 2025_JUN_par_met.parquet.gzip  # Meteorological data
@@ -81,8 +71,22 @@ flight-optimization/
 │   ├── processed_flights_*/            # Route-filtered flights
 │   ├── filtered_flights_met_bounds_*/  # Met-filtered flights
 │   └── wind_grids_cache.pkl           # Pre-computed wind grids
+├── src/
+│   ├── preprocessing/
+│   │   ├── 1_flight_split.py          # Flight route splitting script
+│   │   ├── 2_filter_flights.py        # Meteorological filtering script
+│   │   └── 3_flight_met_data_optimization.py  # Wind grid pre-calculation
+│   ├── app.py                         # Flask web application
+│   ├── flight_efficiency_analysis.py  # Flight analysis utilities
+│   ├── flight_optimization_gradient.py # Gradient-based optimizer
+│   ├── utils.py                       # Helper functions
+│   └── wind_service.py                # Wind grid service module
+├── templates/
+│   └── index.html                     # Web interface template
 └── README.md
 ```
+
+**Important:** Set `esgi_nats` as your working directory before running any scripts. All paths in the code are relative to this root directory.
 
 ## 📊 Data Preparation
 
@@ -91,7 +95,7 @@ flight-optimization/
 The data preparation pipeline consists of three sequential steps:
 
 ### Step 1: Flight Route Splitting
-**Script:** `1_flight_split.py`
+**Script:** `src/preprocessing/1_flight_split.py`
 
 This script filters raw flight data by specific routes.
 
@@ -107,11 +111,11 @@ DESTINATION_AIRPORT = "LFPG"   # Destination airport code (Paris)
 
 **Usage:**
 ```bash
-python 1_flight_split.py
+python src/preprocessing/1_flight_split.py
 ```
 
 ### Step 2: Meteorological Boundary Filtering
-**Script:** `2_filter_flights.py`
+**Script:** `src/preprocessing/2_filter_flights.py`
 
 Applies meteorological boundary filtering to ensure flights are within the available weather data coverage area.
 
@@ -121,7 +125,7 @@ Applies meteorological boundary filtering to ensure flights are within the avail
 
 **Usage:**
 ```bash
-python 2_filter_flights.py
+python src/preprocessing/2_filter_flights.py
 ```
 
 The script filters flights to stay within meteorological data bounds:
@@ -129,7 +133,7 @@ The script filters flights to stay within meteorological data bounds:
 - Longitude: 87.50°W to 12.50°W
 
 ### Step 3: Wind Grid Pre-calculation
-**Script:** `3_flight_met_data_optimization.py`
+**Script:** `src/preprocessing/3_flight_met_data_optimization.py`
 
 Generates pre-computed wind grids for fast runtime lookups.
 
@@ -139,7 +143,7 @@ Generates pre-computed wind grids for fast runtime lookups.
 
 **Usage:**
 ```bash
-python 3_flight_met_data_optimization.py
+python src/preprocessing/3_flight_met_data_optimization.py
 ```
 
 This creates a cached wind grid with:
@@ -150,13 +154,16 @@ This creates a cached wind grid with:
 
 ### Complete Data Pipeline:
 ```bash
+# Ensure you're in the esgi_nats root directory
+cd /path/to/esgi_nats
+
 # Run all preprocessing steps in sequence
-python 1_flight_split.py
-python 2_filter_flights.py  
-python 3_flight_met_data_optimization.py
+python src/preprocessing/1_flight_split.py
+python src/preprocessing/2_filter_flights.py  
+python src/preprocessing/3_flight_met_data_optimization.py
 
 # Then start the web application
-python app.py
+python src/app.py
 ```
 
 ### Data Requirements:
@@ -168,29 +175,32 @@ python app.py
 
 ### Quick Start - Complete Pipeline
 
-Run the complete data processing pipeline and start the application:
+**Important:** Ensure you're in the `esgi_nats` root directory before running any commands.
 
 ```bash
+# Navigate to project root
+cd /path/to/esgi_nats
+
 # Step 1: Filter flights by route (CYYZ to LFPG)
-python 1_flight_split.py
+python src/preprocessing/1_flight_split.py
 
 # Step 2: Apply meteorological boundary filtering
-python 2_filter_flights.py
+python src/preprocessing/2_filter_flights.py
 
 # Step 3: Generate wind grid cache
-python 3_flight_met_data_optimization.py
+python src/preprocessing/3_flight_met_data_optimization.py
 
 # Step 4: Start the web application
-python app.py
+python src/app.py
 ```
 
 Access the application at: `http://localhost:5000`
 
 ### Running the Web Application
 
-1. Start the Flask server:
+2. Start the Flask server:
 ```bash
-python app.py
+python src/app.py
 ```
 
 2. Open your browser and navigate to:
@@ -207,29 +217,34 @@ http://localhost:5000
 ### Using the Optimization Modules Directly
 
 #### Gradient-Based Optimization
-
 ```python
-from src.flight_optimization_gradient import main_fixed_temporal_gradient_search
-from src.wind_service import WindGridOptimizer
+import sys
+sys.path.append('src')  # Add src to path if running from esgi_nats root
+
+from flight_optimization_gradient import main_fixed_temporal_gradient_search
+from wind_service import WindGridOptimizer
 
 # Load wind grids
 wind_optimizer = WindGridOptimizer()
 wind_optimizer.load_grids('./results/wind_grids_cache.pkl')
 
 # Load flight data
-flight_data = pd.read_parquet('path/to/flight.parquet')
+flight_data = pd.read_parquet('results/filtered_flights_met_bounds_CYYZ_LFPG/flight_example.parquet')
 
 # Run optimization
 optimal_path, analysis = main_fixed_temporal_gradient_search(
-    flight_data,
+    flight_data, 
     is_visualization=True
 )
 ```
 
 #### A* Heuristic Optimization
 ```python
-from src.app import optimize_flight_route
-from src.wind_service import load_wind_grid_from_file
+import sys
+sys.path.append('src')  # Add src to path if running from esgi_nats root
+
+from app import optimize_flight_route
+from wind_service import load_wind_grid_from_file
 
 # Load wind grid
 wind_grid = load_wind_grid_from_file('./results/wind_grids_cache.pkl')
@@ -250,18 +265,18 @@ optimized_route = optimize_flight_route(
 
 Key parameters can be adjusted in the respective files:
 
-### Wind Grid Settings (`wind_service.py`)
+### Wind Grid Settings (`src/wind_service.py`)
 - `grid_resolution`: Spatial resolution in degrees (default: 0.1°)
 - `available_flight_levels`: Supported altitudes
 
 ### Optimization Parameters
 
-**Gradient Descent (`flight_optimization_gradient.py`):**
+**Gradient Descent (`src/flight_optimization_gradient.py`):**
 - `alpha`: Gradient weight (default: 0.1)
 - `beta`: Goal alignment weight (default: 0.5)
 - `gamma`: Temporal weight (default: 0.02)
 
-**A* Heuristic (`app.py`):**
+**A* Heuristic (`src/app.py`):**
 - `LAT_STEP`: Latitude step size (default: 0.1°)
 - `LON_STEP`: Longitude step size (default: 0.5°)
 - `ALT_STEP`: Altitude step (default: 2000 ft)
