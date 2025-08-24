@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight-MET Data Analyzer with Route Optimization</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            color: #2c3e50;
+            text-align: center;
+            font-size: 2.5em;
+        }
+
+        .header p {
+            text-align: center;
+            color: #7f8c8d;
+            margin: 10px 0 0 0;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            font-weight: bold;
+            color: #2c3e50;
+            min-width: 150px;
+        }
+
+        .control-group select, .control-group button {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .control-group select {
+            min-width: 400px;
+            background: white;
+        }
+
+        .control-group button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+
+        .control-group button:hover {
+            transform: translateY(-2px);
+        }
+
+        .control-group button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .status.loading {
+            background: #f39c12;
+            color: white;
+        }
+
+        .status.success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .status.error {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .optimization-status {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #2e7d32;
+        }
+
+        .optimization-status.failed {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            height: 600px;
+            position: relative;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .wind-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            font-size: 12px;
+            min-width: 200px;
+            display: none;
+        }
+
+        .wind-legend h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .legend-scale {
+            display: flex;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .legend-scale-segment {
+            flex: 1;
+            height: 100%;
+        }
+
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .legend-info {
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+            font-size: 10px;
+            color: #888;
+        }
+
+        .legend-arrow-example {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+            gap: 8px;
+        }
+
+        .legend-arrow {
+            width: 30px;
+            height: 2px;
+            background: #3498db;
+            position: relative;
+        }
+
+        .legend-arrow::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -3px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid #3498db;
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+
+        /* Route Legend Styles */
+        .route-legend {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            font-size: 12px;
+            min-width: 250px;
+            max-width: 300px;
+        }
+
+        .route-legend h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 14px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .legend-line {
+            width: 30px;
+            height: 3px;
+            margin-right: 10px;
+            border-radius: 2px;
+        }
+
+        .legend-line.dashed {
+            background: repeating-linear-gradient(
+                to right,
+                transparent,
+                transparent 3px,
+                currentColor 3px,
+                currentColor 6px
+            );
+        }
+
+        .legend-marker {
+            width: 16px;
+            height: 16px;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-text {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .legend-divider {
+            border-top: 1px solid #eee;
+            margin: 10px 0;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .info-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-card h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .info-card p {
+            margin: 5px 0;
+            color: #7f8c8d;
+        }
+
+        .info-card .value {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .info-card.optimized {
+            border-left-color: #f39c12;
+        }
+
+        .info-card.gradient {
+            border-left-color: #9b59b6;
+        }
+
+        .info-card.efficiency {
+            border-left-color: #27ae60;
+        }
+
+        .info-card.wind-analysis {
+            border-left-color: #3498db;
+        }
+
+        .info-card.savings {
+            border-left-color: #e74c3c;
+        }
+
+        .efficiency-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .efficiency-metric {
+            background: #f0f8ff;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+            margin-bottom: 10px;
+        }
+
+        .efficiency-metric h4 {
+            margin: 0 0 8px 0;
+            color: #2c3e50;
+            font-size: 0.9em;
+        }
+
+        .efficiency-value {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.1em;
+        }
+
+        .efficiency-unit {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .savings-positive {
+            color: #27ae60;
+        }
+
+        .savings-negative {
+            color: #e74c3c;
+        }
+
+        .savings-neutral {
+            color: #7f8c8d;
+        }
+
+        .wind-benefit-item {
+            background: #f8f9fa;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+        }
+
+        .wind-benefit-item strong {
+            color: #2c3e50;
+        }
+
+        .checkbox-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            font-weight: normal;
+        }
+
+        .loading-spinner {
+            display: none;
+            margin-left: 10px;
+        }
+
+        .loading-spinner.show {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        .emoji-icon {
+            background: none !important;
+            border: none !important;
+            font-size: 16px;
+            text-align: center;
+            line-height: 20px;
+        }
+
+        .collapsible-section {
+            margin-top: 20px;
+        }
+
+        .collapsible-header {
+            background: #3498db;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+
+        .collapsible-header:hover {
+            background: #2980b9;
+        }
+
+        .collapsible-content {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: none;
+        }
+
+        .collapsible-content.active {
+            display: block;
+        }
+
+        .collapsible-arrow {
+            transition: transform 0.3s;
+        }
+
+        .collapsible-arrow.rotated {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛩️ Flight-MET Data Analyzer with Route Optimization</h1>
+            <p>Interactive visualization of flight paths with meteorological wind data and automatic route optimization</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="flight-select">Select Flight:</label>
+                <select id="flight-select">
+                    <option value="">Loading flights...</option>
+                </select>
+                <button id="load-flight" disabled>Load Flight Data</button>
+                <div class="loading-spinner" id="loading-spinner">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="show-planned" checked>
+                    Show Planned Waypoints
+                </label>
+                <label>
+                    <input type="checkbox" id="show-actual" checked>
+                    Show Actual Flight Path
+                </label>
+                <label>
+                    <input type="checkbox" id="show-great-circle" checked>
+                    Show Great Circle Route
+                </label>
+                <label>
+                    <input type="checkbox" id="show-optimized" checked>
+                    Show Optimized Route (Heuristic)
+                </label>
+                <label>
+                    <input type="checkbox" id="show-optimized-gradient" checked>
+                    Show Optimized Route (Gradient)
+                </label>
+                <label>
+                    <input type="checkbox" id="show-wind" checked>
+                    Show Wind Arrows
+                </label>
+                <label>
+                    <input type="checkbox" id="show-wind-labels" checked>
+                    Show Wind Speed Labels
+                </label>
+                <label>
+                    <input type="checkbox" id="show-met-bounds" checked>
+                    Show MET Bounds
+                </label>
+            </div>
+
+            <div id="status" class="status" style="display: none;"></div>
+            <div id="optimization-status" class="optimization-status" style="display: none;"></div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+
+            <!-- Route Legend -->
+            <div class="route-legend" id="route-legend">
+                <h4>🗺️ Flight Routes & Elements</h4>
+
+                <div class="legend-item">
+                    <div class="legend-line dashed" style="background-color: #27ae60;"></div>
+                    <span class="legend-text">Planned Waypoints</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-line" style="background-color: #e74c3c;"></div>
+                    <span class="legend-text">Actual Flight Path</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-line dashed" style="background-color: #000000;"></div>
+                    <span class="legend-text">Great Circle Route</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-line" style="background-color: #f39c12;"></div>
+                    <span class="legend-text">Optimized Route (Heuristic)</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-line dashed" style="background-color: #9b59b6;"></div>
+                    <span class="legend-text">Optimized Route (Gradient)</span>
+                </div>
+
+                <div class="legend-divider"></div>
+
+                <div class="legend-item">
+                    <div class="legend-marker" style="background-color: transparent;">🛫</div>
+                    <span class="legend-text">Flight Origin</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-marker" style="background-color: transparent;">🛬</div>
+                    <span class="legend-text">Flight Destination</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-marker" style="background-color: #27ae60; border: 2px solid #27ae60;"></div>
+                    <span class="legend-text">Planned Waypoints</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-marker" style="background-color: #f39c12; border: 2px solid #f39c12;"></div>
+                    <span class="legend-text">Optimized Waypoints</span>
+                </div>
+
+                <div class="legend-item">
+                    <div class="legend-marker" style="background-color: #9b59b6; border: 2px solid #9b59b6;"></div>
+                    <span class="legend-text">Gradient Waypoints</span>
+                </div>
+
+                <div class="legend-divider"></div>
+
+                <div class="legend-item">
+                    <div class="legend-line" style="background-color: #9b59b6; opacity: 0.3;"></div>
+                    <span class="legend-text">MET Data Bounds</span>
+                </div>
+            </div>
+
+            <!-- Wind Legend -->
+            <div class="wind-legend" id="wind-legend">
+                <h4>💨 Wind Speed (knots)</h4>
+                <div class="legend-scale" id="legend-scale"></div>
+                <div class="legend-labels" id="legend-labels"></div>
+                <div class="legend-arrow-example">
+                    <div class="legend-arrow"></div>
+                    <span>Wind direction</span>
+                </div>
+                <div class="legend-info">
+                    <div>• Wind data matched to flight path</div>
+                    <div>• Arrows show wind direction & speed</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <h2>Flight Information</h2>
+            <div class="info-grid">
+                <div class="info-card">
+                    <h3>Selected Flight</h3>
+                    <p>Flight ID: <span class="value" id="info-flight-id">-</span></p>
+                    <p>File: <span class="value" id="info-filename">-</span></p>
+                    <p>Total Records: <span class="value" id="info-total-records">-</span></p>
+                </div>
+
+                <div class="info-card">
+                    <h3>Flight Path Data</h3>
+                    <p>Actual Points: <span class="value" id="info-actual-count">-</span></p>
+                    <p>Origin: <span class="value" id="info-origin">-</span></p>
+                    <p>Destination: <span class="value" id="info-destination">-</span></p>
+                    <p>MET Matches: <span class="value" id="info-met-matches">-</span></p>
+                </div>
+
+                <div class="info-card">
+                    <h3>Actual Flight Analysis</h3>
+                    <p>Total Flown Distance: <span class="value" id="info-flown-distance">-</span></p>
+                    <p>Great Circle Distance: <span class="value" id="info-great-circle-distance">-</span></p>
+                    <p>Efficiency Ratio: <span class="value" id="info-efficiency-ratio">-</span></p>
+                    <p><small style="color: #7f8c8d; font-style: italic;">Lower ratio = more direct flight</small></p>
+                </div>
+
+                <div class="info-card optimized">
+                    <h3>🚀 Optimized Route Analysis (Heuristic)</h3>
+                    <p>Route Distance: <span class="value" id="info-optimized-distance">-</span></p>
+                    <p>Flight Time: <span class="value" id="info-optimized-time">-</span></p>
+                    <p>Waypoints: <span class="value" id="info-optimized-waypoints">-</span></p>
+                    <p>Status: <span class="value" id="info-optimization-status">-</span></p>
+                </div>
+
+                <div class="info-card gradient">
+                    <h3>🎯 Optimized Route Analysis (Gradient)</h3>
+                    <p>Route Distance: <span class="value" id="info-optimized-gradient-distance">-</span></p>
+                    <p>Flight Time: <span class="value" id="info-optimized-gradient-time">-</span></p>
+                    <p>Waypoints: <span class="value" id="info-optimized-gradient-waypoints">-</span></p>
+                    <p>Status: <span class="value" id="info-optimization-gradient-status">-</span></p>
+                </div>
+
+                <div class="info-card">
+                    <h3>Route Comparison</h3>
+                    <p>Distance Difference: <span class="value" id="info-distance-difference">-</span></p>
+                    <p>Time Savings: <span class="value" id="info-time-savings">-</span></p>
+                    <p>Efficiency Gain: <span class="value" id="info-efficiency-gain">-</span></p>
+                    <p><small style="color: #7f8c8d; font-style: italic;">Comparison vs actual flight</small></p>
+                </div>
+
+                <div class="info-card">
+                    <h3>MET Data Coverage</h3>
+                    <p>Latitude: <span class="value" id="info-lat-bounds">41.25° to 68.75°</span></p>
+                    <p>Longitude: <span class="value" id="info-lon-bounds">-87.50° to -12.50°</span></p>
+                    <p>Coverage: <span class="value">North Atlantic</span></p>
+                    <p>Wind Grid: <span class="value" id="info-wind-grid-status">-</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Comprehensive Efficiency Analysis Section -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleSection('efficiency-analysis')">
+                <span>📊 Comprehensive Efficiency Analysis</span>
+                <span class="collapsible-arrow" id="efficiency-analysis-arrow">▼</span>
+            </div>
+            <div class="collapsible-content" id="efficiency-analysis-content">
+                <div class="efficiency-grid">
+                    <!-- Actual Flight Efficiency -->
+                    <div class="info-card efficiency">
+                        <h3>✈️ Actual Flight Efficiency</h3>
+                        <div class="efficiency-metric">
+                            <h4>Total Distance</h4>
+                            <span class="efficiency-value" id="actual-distance">-</span>
+                            <span class="efficiency-unit">km</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Great Circle Efficiency</h4>
+                            <span class="efficiency-value" id="actual-efficiency">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Average Ground Speed</h4>
+                            <span class="efficiency-value" id="actual-ground-speed">-</span>
+                            <span class="efficiency-unit">knots</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Flight Time</h4>
+                            <span class="efficiency-value" id="actual-flight-time">-</span>
+                            <span class="efficiency-unit">hours</span>
+                        </div>
+                    </div>
+
+                    <!-- Heuristic Optimization Results -->
+                    <div class="info-card optimized">
+                        <h3>🚀 Heuristic Optimization Results</h3>
+                        <div class="efficiency-metric">
+                            <h4>Optimized Distance</h4>
+                            <span class="efficiency-value" id="heuristic-distance">-</span>
+                            <span class="efficiency-unit">km</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Efficiency Ratio</h4>
+                            <span class="efficiency-value" id="heuristic-efficiency">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Estimated Flight Time</h4>
+                            <span class="efficiency-value" id="heuristic-flight-time">-</span>
+                            <span class="efficiency-unit">hours</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Waypoints</h4>
+                            <span class="efficiency-value" id="heuristic-waypoints">-</span>
+                        </div>
+                    </div>
+
+                    <!-- Gradient Optimization Results -->
+                    <div class="info-card gradient">
+                        <h3>🎯 Gradient Optimization Results</h3>
+                        <div class="efficiency-metric">
+                            <h4>Optimized Distance</h4>
+                            <span class="efficiency-value" id="gradient-distance">-</span>
+                            <span class="efficiency-unit">km</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Efficiency Ratio</h4>
+                            <span class="efficiency-value" id="gradient-efficiency">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Estimated Flight Time</h4>
+                            <span class="efficiency-value" id="gradient-flight-time">-</span>
+                            <span class="efficiency-unit">hours</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Waypoints</h4>
+                            <span class="efficiency-value" id="gradient-waypoints">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Savings Analysis -->
+                <div class="info-grid" style="margin-top: 20px;">
+                    <div class="info-card savings">
+                        <h3>💰 Heuristic Optimization Savings</h3>
+                        <div class="efficiency-metric">
+                            <h4>Distance Savings</h4>
+                            <span class="efficiency-value" id="heuristic-distance-savings">-</span>
+                            <span class="efficiency-unit">km</span>
+                            <span class="efficiency-value" id="heuristic-distance-savings-percent">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Time Savings</h4>
+                            <span class="efficiency-value" id="heuristic-time-savings">-</span>
+                            <span class="efficiency-unit">minutes</span>
+                            <span class="efficiency-value" id="heuristic-time-savings-percent">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Wind Benefit Improvement</h4>
+                            <span class="efficiency-value" id="heuristic-wind-improvement">-</span>
+                            <span class="efficiency-unit">knots</span>
+                        </div>
+                    </div>
+
+                    <div class="info-card savings">
+                        <h3>💰 Gradient Optimization Savings</h3>
+                        <div class="efficiency-metric">
+                            <h4>Distance Savings</h4>
+                            <span class="efficiency-value" id="gradient-distance-savings">-</span>
+                            <span class="efficiency-unit">km</span>
+                            <span class="efficiency-value" id="gradient-distance-savings-percent">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Time Savings</h4>
+                            <span class="efficiency-value" id="gradient-time-savings">-</span>
+                            <span class="efficiency-unit">minutes</span>
+                            <span class="efficiency-value" id="gradient-time-savings-percent">-</span>
+                        </div>
+                        <div class="efficiency-metric">
+                            <h4>Efficiency Improvement</h4>
+                            <span class="efficiency-value" id="gradient-efficiency-improvement">-</span>
+                            <span class="efficiency-unit">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEW: Wind Analysis Section -->
+        <div class="collapsible-section">
+            <div class="collapsible-header" onclick="toggleSection('wind-analysis')">
+                <span>🌬️ Wind Benefit Analysis</span>
+                <span class="collapsible-arrow" id="wind-analysis-arrow">▼</span>
+            </div>
+            <div class="collapsible-content" id="wind-analysis-content">
+                <div class="efficiency-grid">
+                    <!-- Actual Flight Wind Analysis -->
+                    <div class="info-card wind-analysis">
+                        <h3>✈️ Actual Flight Wind Benefits</h3>
+                        <div id="actual-wind-benefits">
+                            <div class="efficiency-metric">
+                                <h4>Average Wind Benefit</h4>
+                                <span class="efficiency-value" id="actual-avg-wind-benefit">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Maximum Tailwind</h4>
+                                <span class="efficiency-value" id="actual-max-tailwind">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Wind Coverage</h4>
+                                <span class="efficiency-value" id="actual-wind-coverage">-</span>
+                                <span class="efficiency-unit">% of route</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Heuristic Wind Analysis -->
+                    <div class="info-card wind-analysis">
+                        <h3>🚀 Heuristic Route Wind Benefits</h3>
+                        <div id="heuristic-wind-benefits">
+                            <div class="efficiency-metric">
+                                <h4>Average Wind Benefit</h4>
+                                <span class="efficiency-value" id="heuristic-avg-wind-benefit">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Maximum Tailwind</h4>
+                                <span class="efficiency-value" id="heuristic-max-tailwind">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Wind Coverage</h4>
+                                <span class="efficiency-value" id="heuristic-wind-coverage">-</span>
+                                <span class="efficiency-unit">% of route</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gradient Wind Analysis -->
+                    <div class="info-card wind-analysis">
+                        <h3>🎯 Gradient Route Wind Benefits</h3>
+                        <div id="gradient-wind-benefits">
+                            <div class="efficiency-metric">
+                                <h4>Average Wind Benefit</h4>
+                                <span class="efficiency-value" id="gradient-avg-wind-benefit">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Maximum Tailwind</h4>
+                                <span class="efficiency-value" id="gradient-max-tailwind">-</span>
+                                <span class="efficiency-unit">knots</span>
+                            </div>
+                            <div class="efficiency-metric">
+                                <h4>Wind Coverage</h4>
+                                <span class="efficiency-value" id="gradient-wind-coverage">-</span>
+                                <span class="efficiency-unit">% of route</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script>
+        // Global variables
+        let map;
+        let currentLayers = [];
+        let currentFlightData = null;
+        let currentMetData = null;
+        let currentEfficiencyAnalysis = null;
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([55.0, -35.0], 4);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+
+        // Clear all layers from map
+        function clearLayers() {
+            currentLayers.forEach(layer => {
+                map.removeLayer(layer);
+            });
+            currentLayers = [];
+        }
+
+        // Haversine distance calculation
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        // Show status message
+        function showStatus(message, type = 'loading') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+
+            if (type === 'loading') {
+                document.getElementById('loading-spinner').classList.add('show');
+            } else {
+                document.getElementById('loading-spinner').classList.remove('show');
+            }
+        }
+
+        // Hide status message
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('loading-spinner').classList.remove('show');
+        }
+
+        // Show optimization status
+        function showOptimizationStatus(message, success = true) {
+            const statusDiv = document.getElementById('optimization-status');
+            statusDiv.textContent = message;
+            statusDiv.className = success ? 'optimization-status' : 'optimization-status failed';
+            statusDiv.style.display = 'block';
+        }
+
+        // Toggle collapsible sections
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId + '-content');
+            const arrow = document.getElementById(sectionId + '-arrow');
+
+            if (content.classList.contains('active')) {
+                content.classList.remove('active');
+                arrow.classList.remove('rotated');
+            } else {
+                content.classList.add('active');
+                arrow.classList.add('rotated');
+            }
+        }
+
+        // Update efficiency analysis display
+        function updateEfficiencyAnalysis() {
+            if (!currentEfficiencyAnalysis) return;
+
+            console.log('Updating efficiency analysis:', currentEfficiencyAnalysis);
+
+            // Update Actual Flight Efficiency
+            const actualFlight = currentEfficiencyAnalysis.actual_flight;
+            if (actualFlight && actualFlight.path_metrics) {
+                const metrics = actualFlight.path_metrics;
+                document.getElementById('actual-distance').textContent =
+                    metrics.total_distance_km ? metrics.total_distance_km.toFixed(2) : '-';
+                document.getElementById('actual-efficiency').textContent =
+                    metrics.efficiency_ratio ? metrics.efficiency_ratio.toFixed(3) : '-';
+                document.getElementById('actual-ground-speed').textContent =
+                    metrics.average_ground_speed_knots ? metrics.average_ground_speed_knots.toFixed(1) : '-';
+                document.getElementById('actual-flight-time').textContent =
+                    metrics.estimated_flight_time_hours ? metrics.estimated_flight_time_hours.toFixed(2) : '-';
+
+                // Update wind analysis for actual flight
+                if (actualFlight.wind_analysis && actualFlight.wind_analysis.wind_statistics) {
+                    const windStats = actualFlight.wind_analysis.wind_statistics;
+                    document.getElementById('actual-avg-wind-benefit').textContent =
+                        windStats.average_wind_benefit_knots ? windStats.average_wind_benefit_knots.toFixed(1) : '-';
+                    document.getElementById('actual-max-tailwind').textContent =
+                        windStats.maximum_tailwind_knots ? windStats.maximum_tailwind_knots.toFixed(1) : '-';
+                    document.getElementById('actual-wind-coverage').textContent =
+                        windStats.wind_coverage_percentage ? windStats.wind_coverage_percentage.toFixed(1) : '-';
+                }
+            }
+
+            // Update Heuristic Optimization Results
+            const heuristicFlight = currentEfficiencyAnalysis.optimized_heuristic;
+            if (heuristicFlight && heuristicFlight.path_metrics) {
+                const metrics = heuristicFlight.path_metrics;
+                document.getElementById('heuristic-distance').textContent =
+                    metrics.total_distance_km ? metrics.total_distance_km.toFixed(2) : '-';
+                document.getElementById('heuristic-efficiency').textContent =
+                    metrics.efficiency_ratio ? metrics.efficiency_ratio.toFixed(3) : '-';
+                document.getElementById('heuristic-flight-time').textContent =
+                    metrics.estimated_flight_time_hours ? metrics.estimated_flight_time_hours.toFixed(2) : '-';
+                document.getElementById('heuristic-waypoints').textContent =
+                    metrics.waypoint_count ? metrics.waypoint_count.toString() : '-';
+
+                // Update wind analysis for heuristic route
+                if (heuristicFlight.wind_analysis && heuristicFlight.wind_analysis.wind_statistics) {
+                    const windStats = heuristicFlight.wind_analysis.wind_statistics;
+                    document.getElementById('heuristic-avg-wind-benefit').textContent =
+                        windStats.average_wind_benefit_knots ? windStats.average_wind_benefit_knots.toFixed(1) : '-';
+                    document.getElementById('heuristic-max-tailwind').textContent =
+                        windStats.maximum_tailwind_knots ? windStats.maximum_tailwind_knots.toFixed(1) : '-';
+                    document.getElementById('heuristic-wind-coverage').textContent =
+                        windStats.wind_coverage_percentage ? windStats.wind_coverage_percentage.toFixed(1) : '-';
+                }
+            }
+
+            // Update Gradient Optimization Results
+            const gradientFlight = currentEfficiencyAnalysis.optimized_gradient;
+            if (gradientFlight && gradientFlight.path_metrics) {
+                const metrics = gradientFlight.path_metrics;
+                document.getElementById('gradient-distance').textContent =
+                    metrics.total_distance_km ? metrics.total_distance_km.toFixed(2) : '-';
+                document.getElementById('gradient-efficiency').textContent =
+                    metrics.efficiency_ratio ? metrics.efficiency_ratio.toFixed(3) : '-';
+                document.getElementById('gradient-flight-time').textContent =
+                    metrics.estimated_flight_time_hours ? metrics.estimated_flight_time_hours.toFixed(2) : '-';
+                document.getElementById('gradient-waypoints').textContent =
+                    metrics.waypoint_count ? metrics.waypoint_count.toString() : '-';
+
+                // Update wind analysis for gradient route
+                if (gradientFlight.wind_analysis && gradientFlight.wind_analysis.wind_statistics) {
+                    const windStats = gradientFlight.wind_analysis.wind_statistics;
+                    document.getElementById('gradient-avg-wind-benefit').textContent =
+                        windStats.average_wind_benefit_knots ? windStats.average_wind_benefit_knots.toFixed(1) : '-';
+                    document.getElementById('gradient-max-tailwind').textContent =
+                        windStats.maximum_tailwind_knots ? windStats.maximum_tailwind_knots.toFixed(1) : '-';
+                    document.getElementById('gradient-wind-coverage').textContent =
+                        windStats.wind_coverage_percentage ? windStats.wind_coverage_percentage.toFixed(1) : '-';
+                }
+            }
+
+            // Update Savings Analysis
+            if (currentEfficiencyAnalysis.heuristic_savings) {
+                const savings = currentEfficiencyAnalysis.heuristic_savings;
+
+                // Distance savings
+                const distanceSavings = savings.distance_savings_km || 0;
+                const distancePercent = savings.distance_savings_percent || 0;
+                document.getElementById('heuristic-distance-savings').textContent = distanceSavings.toFixed(2);
+                document.getElementById('heuristic-distance-savings-percent').textContent =
+                    `(${distancePercent.toFixed(1)}%)`;
+
+                // Apply color based on savings
+                const distanceEl = document.getElementById('heuristic-distance-savings');
+                const distancePercentEl = document.getElementById('heuristic-distance-savings-percent');
+                if (distanceSavings > 0) {
+                    distanceEl.className = 'efficiency-value savings-positive';
+                    distancePercentEl.className = 'efficiency-value savings-positive';
+                } else if (distanceSavings < 0) {
+                    distanceEl.className = 'efficiency-value savings-negative';
+                    distancePercentEl.className = 'efficiency-value savings-negative';
+                } else {
+                    distanceEl.className = 'efficiency-value savings-neutral';
+                    distancePercentEl.className = 'efficiency-value savings-neutral';
+                }
+
+                // Time savings
+                const timeSavings = savings.time_savings_minutes || 0;
+                const timePercent = savings.time_savings_percent || 0;
+                document.getElementById('heuristic-time-savings').textContent = timeSavings.toFixed(1);
+                document.getElementById('heuristic-time-savings-percent').textContent =
+                    `(${timePercent.toFixed(1)}%)`;
+
+                // Wind improvement
+                const windImprovement = savings.wind_benefit_improvement_knots || 0;
+                document.getElementById('heuristic-wind-improvement').textContent = windImprovement.toFixed(1);
+
+                const windEl = document.getElementById('heuristic-wind-improvement');
+                if (windImprovement > 0) {
+                    windEl.className = 'efficiency-value savings-positive';
+                } else if (windImprovement < 0) {
+                    windEl.className = 'efficiency-value savings-negative';
+                } else {
+                    windEl.className = 'efficiency-value savings-neutral';
+                }
+            }
+
+            // Update Gradient Savings Analysis
+            if (currentEfficiencyAnalysis.gradient_savings) {
+                const savings = currentEfficiencyAnalysis.gradient_savings;
+
+                // Distance savings
+                const distanceSavings = savings.distance_savings_km || 0;
+                const distancePercent = savings.distance_savings_percent || 0;
+                document.getElementById('gradient-distance-savings').textContent = distanceSavings.toFixed(2);
+                document.getElementById('gradient-distance-savings-percent').textContent =
+                    `(${distancePercent.toFixed(1)}%)`;
+
+                // Time savings (placeholder - might not be available)
+                document.getElementById('gradient-time-savings').textContent = '-';
+                document.getElementById('gradient-time-savings-percent').textContent = '';
+
+                // Efficiency improvement
+                const efficiencyImprovement = savings.efficiency_improvement || 0;
+                document.getElementById('gradient-efficiency-improvement').textContent = efficiencyImprovement.toFixed(2);
+            }
+        }
+
+        // Update wind legend
+        function updateWindLegend(minSpeed, maxSpeed) {
+            const legend = document.getElementById('wind-legend');
+            const legendScale = document.getElementById('legend-scale');
+            const legendLabels = document.getElementById('legend-labels');
+
+            // Clear existing content
+            legendScale.innerHTML = '';
+            legendLabels.innerHTML = '';
+
+            // Create color scale segments
+            const segments = 20;
+            for (let i = 0; i < segments; i++) {
+                const t = i / (segments - 1);
+                const color = getViridisColor(t);
+
+                const segment = document.createElement('div');
+                segment.className = 'legend-scale-segment';
+                segment.style.backgroundColor = color;
+                legendScale.appendChild(segment);
+            }
+
+            // Create labels
+            const labelCount = 5;
+            for (let i = 0; i < labelCount; i++) {
+                const t = i / (labelCount - 1);
+                const speed = minSpeed + (maxSpeed - minSpeed) * t;
+
+                const label = document.createElement('span');
+                label.textContent = Math.round(speed);
+                legendLabels.appendChild(label);
+            }
+
+            // Show legend
+            legend.style.display = 'block';
+        }
+
+        // Hide wind legend
+        function hideWindLegend() {
+            document.getElementById('wind-legend').style.display = 'none';
+        }
+
+        // Load available flights
+        async function loadFlights() {
+            try {
+                showStatus('Loading available flights...');
+
+                const response = await fetch('/api/flights');
+                const data = await response.json();
+
+                if (data.success) {
+                    const select = document.getElementById('flight-select');
+                    select.innerHTML = '<option value="">Select a flight...</option>';
+
+                    data.flights.forEach(flight => {
+                        const option = document.createElement('option');
+                        option.value = flight.filename;
+                        option.textContent = flight.display_name;
+                        select.appendChild(option);
+                    });
+
+                    document.getElementById('load-flight').disabled = false;
+                    showStatus(`Found ${data.flights.length} flights`, 'success');
+
+                    setTimeout(hideStatus, 2000);
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading flights:', error);
+                showStatus(`Error loading flights: ${error.message}`, 'error');
+            }
+        }
+
+        // Load flight data
+        async function loadFlightData() {
+            const filename = document.getElementById('flight-select').value;
+
+            if (!filename) {
+                showStatus('Please select a flight first', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Loading flight data and optimizing route...');
+
+                const response = await fetch(`/api/flight-data?filename=${encodeURIComponent(filename)}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    currentFlightData = data.flight_data;
+                    currentMetData = data.met_data;
+                    currentEfficiencyAnalysis = data.efficiency_analysis;
+
+                    updateInfoPanel();
+                    updateEfficiencyAnalysis();
+                    visualizeFlightData();
+
+                    showStatus(`Flight data loaded successfully!`, 'success');
+
+                    // Show optimization status
+                    if (currentFlightData.optimized_route && currentFlightData.optimized_route.length > 0) {
+                        showOptimizationStatus(`✅ Route optimization completed! Found ${currentFlightData.optimized_route.length} waypoints.`, true);
+                    } else {
+                        showOptimizationStatus(`⚠️ Route optimization failed - wind grid cache may be missing.`, false);
+                    }
+
+                    setTimeout(hideStatus, 3000);
+                } else {
+                    showStatus(`Error: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error loading flight data:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Update information panel
+        function updateInfoPanel() {
+            if (!currentFlightData) return;
+
+            const flightId = currentFlightData.filename.replace('flight_', '').replace('_filtered.parquet', '').replace(/_/g, ' ').replace(/-/g, ':');
+
+            document.getElementById('info-flight-id').textContent = flightId;
+            document.getElementById('info-filename').textContent = currentFlightData.filename;
+            document.getElementById('info-total-records').textContent = currentFlightData.total_records.toLocaleString();
+
+            // Handle actual points
+            const actualCount = currentFlightData.actual_points ? currentFlightData.actual_points.length : 0;
+            document.getElementById('info-actual-count').textContent = actualCount;
+
+            if (actualCount > 0) {
+                const origin = currentFlightData.actual_points[0];
+                const destination = currentFlightData.actual_points[actualCount - 1];
+
+                document.getElementById('info-origin').textContent = `${origin[0].toFixed(2)}, ${origin[1].toFixed(2)}`;
+                document.getElementById('info-destination').textContent = `${destination[0].toFixed(2)}, ${destination[1].toFixed(2)}`;
+            } else {
+                document.getElementById('info-origin').textContent = 'No data';
+                document.getElementById('info-destination').textContent = 'No data';
+            }
+
+            // Handle MET data
+            const metCount = currentMetData ? currentMetData.length : 0;
+            document.getElementById('info-met-matches').textContent = metCount;
+
+            // Handle flight distance data
+            if (currentFlightData.distance_info && currentFlightData.distance_info.has_distance_data) {
+                const distanceInfo = currentFlightData.distance_info;
+
+                document.getElementById('info-flown-distance').textContent = `${distanceInfo.total_flown_distance.toFixed(2)} km`;
+                document.getElementById('info-great-circle-distance').textContent = `${distanceInfo.great_circle_distance.toFixed(2)} km`;
+                document.getElementById('info-efficiency-ratio').textContent = distanceInfo.efficiency_ratio.toFixed(3);
+            } else {
+                document.getElementById('info-flown-distance').textContent = 'No data';
+                document.getElementById('info-great-circle-distance').textContent = 'No data';
+                document.getElementById('info-efficiency-ratio').textContent = 'No data';
+            }
+
+            // Handle heuristic optimized route data
+            if (currentFlightData.optimized_route && currentFlightData.optimized_route.length > 0) {
+                const optimizedInfo = currentFlightData.optimized_distance_info;
+
+                document.getElementById('info-optimized-waypoints').textContent = currentFlightData.optimized_route.length;
+                document.getElementById('info-optimization-status').textContent = 'Completed';
+
+                if (optimizedInfo.has_data) {
+                    document.getElementById('info-optimized-distance').textContent = `${optimizedInfo.total_distance.toFixed(2)} km`;
+                    document.getElementById('info-optimized-time').textContent = `${optimizedInfo.flight_time.toFixed(2)} hours`;
+
+                    // Calculate comparisons
+                    if (currentFlightData.distance_info && currentFlightData.distance_info.has_distance_data) {
+                        const actualDistance = currentFlightData.distance_info.total_flown_distance;
+                        const optimizedDistance = optimizedInfo.total_distance;
+                        const distanceDiff = actualDistance - optimizedDistance;
+                        const distanceSavings = ((distanceDiff / actualDistance) * 100);
+
+                        document.getElementById('info-distance-difference').textContent = `${distanceDiff.toFixed(2)} km`;
+                        document.getElementById('info-time-savings').textContent = `${optimizedInfo.flight_time.toFixed(2)} hours`;
+                        document.getElementById('info-efficiency-gain').textContent = `${distanceSavings.toFixed(1)}%`;
+                    } else {
+                        document.getElementById('info-distance-difference').textContent = 'No comparison data';
+                        document.getElementById('info-time-savings').textContent = 'No comparison data';
+                        document.getElementById('info-efficiency-gain').textContent = 'No comparison data';
+                    }
+                } else {
+                    document.getElementById('info-optimized-distance').textContent = 'Calculation failed';
+                    document.getElementById('info-optimized-time').textContent = 'Calculation failed';
+                    document.getElementById('info-distance-difference').textContent = 'No data';
+                    document.getElementById('info-time-savings').textContent = 'No data';
+                    document.getElementById('info-efficiency-gain').textContent = 'No data';
+                }
+
+                document.getElementById('info-wind-grid-status').textContent = 'Available';
+            } else {
+                document.getElementById('info-optimized-waypoints').textContent = 'Failed';
+                document.getElementById('info-optimization-status').textContent = 'Failed';
+                document.getElementById('info-optimized-distance').textContent = 'Not available';
+                document.getElementById('info-optimized-time').textContent = 'Not available';
+                document.getElementById('info-distance-difference').textContent = 'Not available';
+                document.getElementById('info-time-savings').textContent = 'Not available';
+                document.getElementById('info-efficiency-gain').textContent = 'Not available';
+                document.getElementById('info-wind-grid-status').textContent = 'Not available';
+            }
+
+            // Handle gradient optimized route data
+            if (currentFlightData.optimized_route_gradient && currentFlightData.optimized_route_gradient.length > 0) {
+                document.getElementById('info-optimized-gradient-waypoints').textContent = currentFlightData.optimized_route_gradient.length;
+                document.getElementById('info-optimization-gradient-status').textContent = 'Completed';
+
+                // Calculate gradient route distance and time
+                const gradientPoints = currentFlightData.optimized_route_gradient;
+                let totalDistance = 0;
+
+                for (let i = 1; i < gradientPoints.length; i++) {
+                    const lat1 = gradientPoints[i-1][0];
+                    const lon1 = gradientPoints[i-1][1];
+                    const lat2 = gradientPoints[i][0];
+                    const lon2 = gradientPoints[i][1];
+                    totalDistance += haversineDistance(lat1, lon1, lat2, lon2);
+                }
+
+                const estimatedTime = totalDistance / 450 * 0.539957; // Convert to hours assuming 450 knots
+
+                document.getElementById('info-optimized-gradient-distance').textContent = `${totalDistance.toFixed(2)} km`;
+                document.getElementById('info-optimized-gradient-time').textContent = `${estimatedTime.toFixed(2)} hours`;
+            } else {
+                document.getElementById('info-optimized-gradient-waypoints').textContent = 'Failed';
+                document.getElementById('info-optimization-gradient-status').textContent = 'Failed';
+                document.getElementById('info-optimized-gradient-distance').textContent = 'Not available';
+                document.getElementById('info-optimized-gradient-time').textContent = 'Not available';
+            }
+        }
+
+        // Visualize flight data on map
+        function visualizeFlightData() {
+            if (!currentFlightData) return;
+
+            clearLayers();
+
+            const showPlanned = document.getElementById('show-planned').checked;
+            const showActual = document.getElementById('show-actual').checked;
+            const showGreatCircle = document.getElementById('show-great-circle').checked;
+            const showOptimized = document.getElementById('show-optimized').checked;
+            const showOptimizedGradient = document.getElementById('show-optimized-gradient').checked;
+            const showWind = document.getElementById('show-wind').checked;
+            const showWindLabels = document.getElementById('show-wind-labels').checked;
+            const showMetBounds = document.getElementById('show-met-bounds').checked;
+
+            let allPoints = [];
+
+            // Show MET bounds
+            if (showMetBounds) {
+                const metBounds = [
+                    [41.25, -87.50],
+                    [68.75, -87.50],
+                    [68.75, -12.50],
+                    [41.25, -12.50],
+                    [41.25, -87.50]
+                ];
+
+                const metRectangle = L.polygon(metBounds, {
+                    color: '#9b59b6',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillColor: '#9b59b6',
+                    fillOpacity: 0.1
+                });
+
+                metRectangle.bindPopup('MET Data Bounds<br>Lat: [41.25, 68.75]<br>Lon: [-87.50, -12.50]');
+                map.addLayer(metRectangle);
+                currentLayers.push(metRectangle);
+
+                allPoints = allPoints.concat(metBounds.slice(0, 4));
+            }
+
+            // Show planned waypoints (only if they exist)
+            if (showPlanned && currentFlightData.planned_waypoints && currentFlightData.planned_waypoints.length > 0) {
+                currentFlightData.planned_waypoints.forEach((point, index) => {
+                    const marker = L.circleMarker([point[0], point[1]], {
+                        color: '#27ae60',
+                        fillColor: '#27ae60',
+                        fillOpacity: 0.8,
+                        radius: 5
+                    });
+
+                    marker.bindPopup(`Planned Waypoint ${index + 1}<br>Lat: ${point[0].toFixed(4)}<br>Lon: ${point[1].toFixed(4)}`);
+                    map.addLayer(marker);
+                    currentLayers.push(marker);
+                });
+
+                // Draw planned route line
+                const plannedLine = L.polyline(currentFlightData.planned_waypoints, {
+                    color: '#27ae60',
+                    weight: 3,
+                    opacity: 0.7,
+                    dashArray: '10, 5'
+                });
+
+                map.addLayer(plannedLine);
+                currentLayers.push(plannedLine);
+
+                allPoints = allPoints.concat(currentFlightData.planned_waypoints);
+            }
+
+            // Show actual flight path
+            if (showActual && currentFlightData.actual_points && currentFlightData.actual_points.length > 0) {
+                const actualPoints = currentFlightData.actual_points.map(point => [point[0], point[1]]);
+
+                // Flight path line
+                const flightLine = L.polyline(actualPoints, {
+                    color: '#e74c3c',
+                    weight: 3,
+                    opacity: 0.8
+                });
+
+                map.addLayer(flightLine);
+                currentLayers.push(flightLine);
+
+                // Origin marker
+                const originMarker = L.marker(actualPoints[0], {
+                    icon: L.divIcon({
+                        html: '🛫',
+                        iconSize: [20, 20],
+                        className: 'emoji-icon'
+                    })
+                });
+                originMarker.bindPopup('Flight Origin');
+                map.addLayer(originMarker);
+                currentLayers.push(originMarker);
+
+                // Destination marker
+                if (actualPoints.length > 1) {
+                    const destMarker = L.marker(actualPoints[actualPoints.length - 1], {
+                        icon: L.divIcon({
+                            html: '🛬',
+                            iconSize: [20, 20],
+                            className: 'emoji-icon'
+                        })
+                    });
+                    destMarker.bindPopup('Flight Destination');
+                    map.addLayer(destMarker);
+                    currentLayers.push(destMarker);
+                }
+
+                allPoints = allPoints.concat(actualPoints);
+            }
+
+            // Show great circle route
+            if (showGreatCircle && currentFlightData.great_circle_points && currentFlightData.great_circle_points.length > 0) {
+                const greatCircleLine = L.polyline(currentFlightData.great_circle_points, {
+                    color: '#000000',
+                    weight: 5,
+                    opacity: 1,
+                    dashArray: '8, 8'
+                });
+
+                greatCircleLine.bindPopup('Great Circle Route<br>Shortest distance between origin and destination');
+                map.addLayer(greatCircleLine);
+                currentLayers.push(greatCircleLine);
+
+                allPoints = allPoints.concat(currentFlightData.great_circle_points);
+            }
+
+            // Show heuristic optimized route
+            if (showOptimized && currentFlightData.optimized_route && currentFlightData.optimized_route.length > 0) {
+                const optimizedPoints = currentFlightData.optimized_route.map(point => [point[0], point[1]]);
+
+                const optimizedLine = L.polyline(optimizedPoints, {
+                    color: '#f39c12',
+                    weight: 4,
+                    opacity: 0.9
+                });
+
+                optimizedLine.bindPopup(`Optimized Route (Heuristic)<br>Distance: ${currentFlightData.optimized_distance_info.total_distance.toFixed(2)} km<br>Time: ${currentFlightData.optimized_distance_info.flight_time.toFixed(2)} hours`);
+                map.addLayer(optimizedLine);
+                currentLayers.push(optimizedLine);
+
+                // Add waypoint markers
+                currentFlightData.optimized_route.forEach((point, index) => {
+                    if (index === 0 || index === currentFlightData.optimized_route.length - 1) return; // Skip start and end
+
+                    const waypointMarker = L.circleMarker([point[0], point[1]], {
+                        color: '#f39c12',
+                        fillColor: '#f39c12',
+                        fillOpacity: 0.8,
+                        radius: 4
+                    });
+
+                    waypointMarker.bindPopup(`Optimized Waypoint ${index + 1}<br>Lat: ${point[0].toFixed(4)}<br>Lon: ${point[1].toFixed(4)}<br>Alt: ${point[2].toFixed(0)} ft<br>Time: ${point[3].toFixed(2)} hours`);
+                    map.addLayer(waypointMarker);
+                    currentLayers.push(waypointMarker);
+                });
+
+                allPoints = allPoints.concat(optimizedPoints);
+            }
+
+            // Show gradient optimized route
+            if (showOptimizedGradient && currentFlightData.optimized_route_gradient && currentFlightData.optimized_route_gradient.length > 0) {
+                const gradientPoints = currentFlightData.optimized_route_gradient.map(point => [point[0], point[1]]);
+
+                const gradientLine = L.polyline(gradientPoints, {
+                    color: '#9b59b6',
+                    weight: 4,
+                    opacity: 0.9,
+                    dashArray: '8, 4'
+                });
+
+                // Calculate total distance for popup
+                let totalDistance = 0;
+                for (let i = 1; i < currentFlightData.optimized_route_gradient.length; i++) {
+                    const lat1 = currentFlightData.optimized_route_gradient[i-1][0];
+                    const lon1 = currentFlightData.optimized_route_gradient[i-1][1];
+                    const lat2 = currentFlightData.optimized_route_gradient[i][0];
+                    const lon2 = currentFlightData.optimized_route_gradient[i][1];
+                    totalDistance += haversineDistance(lat1, lon1, lat2, lon2);
+                }
+
+                const estimatedTime = totalDistance / 450 * 0.539957; // Convert to hours
+                gradientLine.bindPopup(`Optimized Route (Gradient)<br>Distance: ${totalDistance.toFixed(2)} km<br>Estimated Time: ${estimatedTime.toFixed(2)} hours`);
+                map.addLayer(gradientLine);
+                currentLayers.push(gradientLine);
+
+                // Add waypoint markers with different style
+                currentFlightData.optimized_route_gradient.forEach((point, index) => {
+                    if (index === 0 || index === currentFlightData.optimized_route_gradient.length - 1) return; // Skip start and end
+
+                    const waypointMarker = L.circleMarker([point[0], point[1]], {
+                        color: '#9b59b6',
+                        fillColor: '#9b59b6',
+                        fillOpacity: 0.8,
+                        radius: 3
+                    });
+
+                    waypointMarker.bindPopup(`Gradient Waypoint ${index + 1}<br>Lat: ${point[0].toFixed(4)}<br>Lon: ${point[1].toFixed(4)}`);
+                    map.addLayer(waypointMarker);
+                    currentLayers.push(waypointMarker);
+                });
+
+                allPoints = allPoints.concat(gradientPoints);
+            }
+
+            // Show wind arrows
+            if (showWind && currentMetData && currentMetData.length > 0) {
+                plotWindArrows(currentMetData, showWindLabels);
+
+                // Add wind points to bounds
+                currentMetData.forEach(wind => {
+                    allPoints.push([wind.lat, wind.lon]);
+                });
+            } else {
+                // Hide legend if no wind arrows are shown
+                hideWindLegend();
+            }
+
+            // Fit map to show all data
+            if (allPoints.length > 0) {
+                const group = new L.featureGroup(currentLayers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        // Plot wind arrows
+        function plotWindArrows(metData, showLabels) {
+            // Group data by spatial grid
+            const gridSize = 0.8;
+            const gridData = new Map();
+
+            metData.forEach(windData => {
+                const gridLat = Math.round(windData.lat / gridSize) * gridSize;
+                const gridLon = Math.round(windData.lon / gridSize) * gridSize;
+                const gridKey = `${gridLat.toFixed(1)}_${gridLon.toFixed(1)}`;
+
+                if (!gridData.has(gridKey)) {
+                    gridData.set(gridKey, {
+                        lat: gridLat,
+                        lon: gridLon,
+                        speeds: [],
+                        directions: [],
+                        count: 0
+                    });
+                }
+
+                const cell = gridData.get(gridKey);
+                cell.speeds.push(windData.speed);
+                cell.directions.push(windData.direction);
+                cell.count++;
+            });
+
+            // Find speed range for coloring
+            const allSpeeds = metData.map(d => d.speed);
+            const minSpeed = Math.min(...allSpeeds);
+            const maxSpeed = Math.max(...allSpeeds);
+
+            // Update wind legend
+            updateWindLegend(minSpeed, maxSpeed);
+
+            // Plot arrows
+            gridData.forEach((cell, gridKey) => {
+                const avgSpeed = cell.speeds.reduce((a, b) => a + b, 0) / cell.speeds.length;
+                const avgDirection = cell.directions.reduce((a, b) => a + b, 0) / cell.directions.length;
+
+                const lat = cell.lat;
+                const lon = cell.lon;
+
+                // Convert direction and calculate components
+                const directionDeg = avgDirection * 10;
+                const directionRad = (directionDeg * Math.PI) / 180;
+                const u = avgSpeed * Math.sin(directionRad);
+                const v = avgSpeed * Math.cos(directionRad);
+
+                // Scale for visibility
+                const scale = 0.05;
+                const endLat = lat + (v * scale);
+                const endLon = lon + (u * scale);
+
+                // Get color based on wind speed
+                const normalizedSpeed = maxSpeed > minSpeed ? (avgSpeed - minSpeed) / (maxSpeed - minSpeed) : 0;
+                const color = getViridisColor(normalizedSpeed);
+
+                // Create arrow
+                const arrowShaft = L.polyline([[lat, lon], [endLat, endLon]], {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.9
+                });
+
+                // Arrowhead
+                const arrowheadLength = 0.5;
+                const arrowheadAngle = Math.PI / 5;
+
+                const leftAngle = directionRad + Math.PI - arrowheadAngle;
+                const leftEndLat = endLat + arrowheadLength * Math.cos(leftAngle);
+                const leftEndLon = endLon + arrowheadLength * Math.sin(leftAngle);
+
+                const rightAngle = directionRad + Math.PI + arrowheadAngle;
+                const rightEndLat = endLat + arrowheadLength * Math.cos(rightAngle);
+                const rightEndLon = endLon + arrowheadLength * Math.sin(rightAngle);
+
+                const leftArrowhead = L.polyline([[endLat, endLon], [leftEndLat, leftEndLon]], {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.9
+                });
+
+                const rightArrowhead = L.polyline([[endLat, endLon], [rightEndLat, rightEndLon]], {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.9
+                });
+
+                const popupContent = `
+                    <b>Wind Data</b><br>
+                    Speed: ${avgSpeed.toFixed(1)} knots<br>
+                    Direction: ${directionDeg.toFixed(0)}°<br>
+                    Data Points: ${cell.count}<br>
+                    Location: ${lat.toFixed(2)}, ${lon.toFixed(2)}
+                `;
+
+                arrowShaft.bindPopup(popupContent);
+                leftArrowhead.bindPopup(popupContent);
+                rightArrowhead.bindPopup(popupContent);
+
+                map.addLayer(arrowShaft);
+                map.addLayer(leftArrowhead);
+                map.addLayer(rightArrowhead);
+
+                currentLayers.push(arrowShaft);
+                currentLayers.push(leftArrowhead);
+                currentLayers.push(rightArrowhead);
+
+                // Speed label
+                if (showLabels) {
+                    const speedLabel = L.marker([lat, lon], {
+                        icon: L.divIcon({
+                            html: `<div style="background: rgba(255,255,255,0.9); padding: 2px 5px; border-radius: 3px; font-size: 11px; font-weight: bold; color: black; border: 1px solid ${color}; text-align: center;">${Math.round(avgSpeed)}</div>`,
+                            iconSize: [30, 20],
+                            iconAnchor: [15, 10],
+                            className: ''
+                        })
+                    });
+
+                    map.addLayer(speedLabel);
+                    currentLayers.push(speedLabel);
+                }
+            });
+        }
+
+        // Viridis color function
+        function getViridisColor(t) {
+            t = Math.max(0, Math.min(1, t));
+
+            if (t <= 0.25) {
+                const localT = t * 4;
+                const r = Math.round(68 + localT * (59 - 68));
+                const g = Math.round(1 + localT * (82 - 1));
+                const b = Math.round(84 + localT * (139 - 84));
+                return `rgb(${r},${g},${b})`;
+            } else if (t <= 0.5) {
+                const localT = (t - 0.25) * 4;
+                const r = Math.round(59 + localT * (33 - 59));
+                const g = Math.round(82 + localT * (144 - 82));
+                const b = Math.round(139 + localT * (141 - 139));
+                return `rgb(${r},${g},${b})`;
+            } else if (t <= 0.75) {
+                const localT = (t - 0.5) * 4;
+                const r = Math.round(33 + localT * (94 - 33));
+                const g = Math.round(144 + localT * (201 - 144));
+                const b = Math.round(141 + localT * (98 - 141));
+                return `rgb(${r},${g},${b})`;
+            } else {
+                const localT = (t - 0.75) * 4;
+                const r = Math.round(94 + localT * (253 - 94));
+                const g = Math.round(201 + localT * (231 - 201));
+                const b = Math.round(98 + localT * (37 - 98));
+                return `rgb(${r},${g},${b})`;
+            }
+        }
+
+        // Event listeners
+        document.getElementById('flight-select').addEventListener('change', function() {
+            const loadButton = document.getElementById('load-flight');
+            loadButton.disabled = !this.value;
+        });
+
+        document.getElementById('load-flight').addEventListener('click', loadFlightData);
+
+        // Checkbox event listeners
+        ['show-planned', 'show-actual', 'show-great-circle', 'show-optimized', 'show-optimized-gradient', 'show-wind', 'show-wind-labels', 'show-met-bounds'].forEach(id => {
+            document.getElementById(id).addEventListener('change', function() {
+                if (currentFlightData) {
+                    visualizeFlightData();
+                }
+            });
+        });
+
+        // Initialize app
+        window.addEventListener('load', function() {
+            initMap();
+            loadFlights();
+        });
+    </script>
+</body>
+</html>
